@@ -42,21 +42,21 @@ def extract_feature(model,data):
     return result_npy  # 返回的矩阵shape是[1, 512, 14, 14]，这么做是为了让shape变回[512, 14,14]
 
 
-def extract_img(video_dir, jpg_dir):
+def extract_img(video_dir, jpg_dir): #加载视频图像数据集，加载模型，特征提取部分在界面部分
     # os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
     myUCF101 = UCF101(video_dir, jpg_dir,
                       transform=transforms.Compose([ClipSubstractMean(), RandomCrop(), ToTensor()]))
 
-    imgdataloader = DataLoader(myUCF101, batch_size=2, shuffle=False)
+    imgdataloader = DataLoader(myUCF101, batch_size=2, shuffle=False) #设置batch_size为2
     model = make_model()
 
     return imgdataloader,model,myUCF101.__len__()
 
 
-def extract_audio(audio_dir):
+def extract_audio(audio_dir): #提取音频特征
     audio_features=[]
-    for class_name in os.listdir(audio_dir): #提取音频特征
+    for class_name in os.listdir(audio_dir):
         class_path = os.path.join(audio_dir, class_name)
         for file_name in os.listdir(class_path):
             file=os.path.join(class_path, file_name)

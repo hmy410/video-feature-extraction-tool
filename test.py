@@ -162,7 +162,9 @@ class work_img(QThread):
         num = 0
         # QThread.sleep(1000)
 
-        for i_batch, sample_batched in enumerate(imgdataloader):  # 提取图像特征
+        # 提取图像特征
+        # 设置batch_size为2，每个视频选取16帧，（16,3,224,224）
+        for i_batch, sample_batched in enumerate(imgdataloader):
 
             sample_batched = np.array(sample_batched['video_x'])
             try:
