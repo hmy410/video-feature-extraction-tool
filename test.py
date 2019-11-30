@@ -17,6 +17,7 @@ import n_frames_ucf101_hmdb51
 import audio_wav_ucf101_hmdb51
 import numpy as np
 import pickle
+import time
 
 
 class Ui_Form(QWidget):
@@ -64,7 +65,7 @@ class Ui_Form(QWidget):
 
         self.thread=work_img()
         self.thread1=work_audio()
-        self.thread.trigger.connect(self.slotEnd)
+        self.thread1.trigger.connect(self.slotEnd)
         self.pushButton_2.clicked.connect(self.slotStart)
         # self.thread.start()
         self.retranslateUi(Form)
@@ -75,6 +76,7 @@ class Ui_Form(QWidget):
 
     def showTime(self):
         # 获取系统当前时间
+        global flag
         time = QDateTime.currentDateTime()
         # 设置系统时间的显示格式
         timeDisplay = self.startime.msecsTo(time)
@@ -82,11 +84,12 @@ class Ui_Form(QWidget):
         if flag==1:
             textBrowser.append(str(timeDisplay/1000)+'s')
             textBrowser.moveCursor(textBrowser.textCursor().End)
+        flag=0
 
     def startTimer(self):
         # 设置时间间隔并启动定时器
         self.startime=QDateTime.currentDateTime()
-        self.timer.start()
+        self.timer.start(1)
 
 
     def endTimer(self):
@@ -113,6 +116,7 @@ class Ui_Form(QWidget):
         self.pushButton_2.setEnabled(False)
         self.startTimer()
         self.thread.start()
+        # time.sleep(5)
         self.thread1.start()
 
     def slotEnd(self):
@@ -122,7 +126,7 @@ class Ui_Form(QWidget):
 
 
 class work_img(QThread):
-    trigger = pyqtSignal() # 自定义信号，执行run()函数时，从相关线程发射此信号
+    trigger = pyqtSignal(int) # 自定义信号，执行run()函数时，从相关线程发射此信号
 
     def __init__(self):
         super(work_img, self).__init__()
@@ -136,7 +140,7 @@ class work_img(QThread):
     #     self.wait()
 
     def run(self):
-        global flag
+
         try:
             if video_dir==0:
                 raise Exception
@@ -147,6 +151,7 @@ class work_img(QThread):
         # print("开始")
         self.mutex.lock()
         if not os.path.exists(jpg_dir):
+
             for class_name in os.listdir(video_dir):
 
                 video_jpg_ucf101_hmdb51.class_process(video_dir, jpg_dir, class_name)
@@ -194,15 +199,16 @@ class work_img(QThread):
 
 
         self.mutex.unlock()
-        try:
-            self.trigger.emit()
-        except Exception as e:
-            print(e)
+        # try:
+
+        self.trigger.emit(1)
+        # except Exception as e:
+        #     print(e)
 
             # self.sleep(1)
 
 class work_audio(QThread):
-    trigger = pyqtSignal()  # 自定义信号，执行run()函数时，从相关线程发射此信号
+    trigger = pyqtSignal(int)  # 自定义信号，执行run()函数时，从相关线程发射此信号
 
     def __init__(self):
         super(work_audio, self).__init__()
@@ -234,7 +240,7 @@ class work_audio(QThread):
 
         # print("结束1")
         self.mutex.unlock()
-        self.trigger.emit()
+        self.trigger.emit(2)
 
 
 if __name__=="__main__":
