@@ -77,6 +77,7 @@ class Ui_Form(QWidget):
     def showTime(self):
         # 获取系统当前时间
         global flag
+        flag=0
         time = QDateTime.currentDateTime()
         # 设置系统时间的显示格式
         timeDisplay = self.startime.msecsTo(time)
@@ -86,10 +87,11 @@ class Ui_Form(QWidget):
             textBrowser.moveCursor(textBrowser.textCursor().End)
         flag=0
 
+
     def startTimer(self):
         # 设置时间间隔并启动定时器
         self.startime=QDateTime.currentDateTime()
-        self.timer.start(1)
+        self.timer.start(1000)
 
 
     def endTimer(self):
@@ -115,6 +117,8 @@ class Ui_Form(QWidget):
     def slotStart(self):
         self.pushButton_2.setEnabled(False)
         self.startTimer()
+        fl = open('log.txt', 'w')
+        fl.close()
         self.thread.start()
         # time.sleep(5)
         self.thread1.start()
@@ -140,12 +144,15 @@ class work_img(QThread):
     #     self.wait()
 
     def run(self):
-
+        self.mutex.lock()
         try:
             if video_dir==0:
                 raise Exception
-        except:
-            print("error")
+        except Exception as e:
+            print(e)
+            fl = open('log.txt', 'a')
+            fl.write(e + "\n")
+            fl.close()
             self.trigger.emit()
             return
         # print("开始")
@@ -165,6 +172,7 @@ class work_img(QThread):
         imgdataloader, model, len = extract_img(video_dir,jpg_dir)
         features = []
         num = 0
+        self.mutex.unlock()
         # QThread.sleep(1000)
 
         # 提取图像特征
@@ -174,8 +182,8 @@ class work_img(QThread):
             sample_batched = np.array(sample_batched['video_x'])
             try:
                 for i in range(2):
-                    # self.mutex.lock()
-                    flag=0
+                    self.mutex.lock()
+
                     tmp = extract_feature(model, sample_batched[i])
                     # self.mutex.unlock()
                     # QThread.sleep(1)
@@ -183,27 +191,37 @@ class work_img(QThread):
                     num += 1
                     info = "共" + str(len) + "个视频，已处理" + str(num) + "个视频，未处理"+str(len-num)+"个视频"
                     print(info)
-                    flag=1
+
+                    flag = 1
                     textBrowser.append(info)
                     textBrowser.moveCursor(textBrowser.textCursor().End)  # 文本框显示到底部
+                    self.mutex.unlock()
+
             except Exception as e:
                 print(e)
+                fl = open('log.txt', 'a')
+                fl.write(e+"\n")
+                fl.close()
                 # QThread.sleep(1)
                 # self.sleep(5)
 
         fw = open('ImageFeatures.txt', 'wb')
         pickle.dump(features, fw)
         fw.close()
+        fl = open('log.txt', 'a')
+        fl.write("音频特征已写入ImageFeatures.txt\n")
+        fl.close()
 
-        # print("结束")
 
 
-        self.mutex.unlock()
-        # try:
 
-        self.trigger.emit(1)
-        # except Exception as e:
-        #     print(e)
+        try:
+            self.trigger.emit(1) #无响应
+        except Exception as e:
+            print(e)
+            fl = open('log.txt', 'a')
+            fl.write(e + "\n")
+            fl.close()
 
             # self.sleep(1)
 
@@ -215,14 +233,20 @@ class work_audio(QThread):
         self.mutex = QMutex()
 
     def run(self):
+        self.mutex.lock()
         try:
             if video_dir==0:
                 raise Exception
-        except:
-            # print("error")
+        except Exception as e:
+            print(e)
+            fl = open('log.txt', 'a')
+            fl.write(e + "\n")
+            fl.close()
             self.trigger.emit()
             return
+        self.mutex.unlock()
         # print("开始1")
+        # self.mutex.lock()
         self.mutex.lock()
         if not os.path.exists(audio_dir):
             for class_name in os.listdir(video_dir):
@@ -234,8 +258,14 @@ class work_audio(QThread):
         # QThread.sleep(1000)
         try:
             extract_audio(video_dir)
+            fl = open('log.txt', 'a')
+            fl.write("音频特征已写入AudioFeatures.txt\n")
+            fl.close()
         except Exception as e:
             print(e)
+            fl = open('log.txt', 'a')
+            fl.write(e + "\n")
+            fl.close()
 
 
         # print("结束1")
