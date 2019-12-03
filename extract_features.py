@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from data_process import *
 import numpy as np
 import torch
@@ -6,17 +8,11 @@ from torch import nn
 import torchvision.models as models
 import torch.cuda
 import torchvision.transforms as transforms
-from PIL import Image
 
-import numpy
-import scipy.io.wavfile
-from matplotlib import pyplot as plt
-from scipy.fftpack import dct
 import os
 import librosa
 import pickle
 import threading
-import time
 
 img_to_tensor = transforms.ToTensor()
 
@@ -53,17 +49,27 @@ def extract_img(video_dir, jpg_dir): #加载视频图像数据集，加载模型
 
     return imgdataloader,model,myUCF101.__len__()
 
+mutex=threading.Lock()
 
 def extract_audio(audio_dir): #提取音频特征
     audio_features=[]
+
     for class_name in os.listdir(audio_dir):
         class_path = os.path.join(audio_dir, class_name)
         for file_name in os.listdir(class_path):
-            file=os.path.join(class_path, file_name)
-            y,sr=librosa.load(file)
-            mfcc=librosa.feature.mfcc(y,sr,n_mfcc=13)
+            mutex.acquire()
+            try:
+                file=os.path.join(class_path, file_name)
+                y,sr=librosa.load(file)
+                mfcc=librosa.feature.mfcc(y,sr,n_mfcc=13)
             # time.sleep(5)
+            except Exception as e:
+                print(e)
+                fl = open('log.txt', 'a')
+                fl.write(str(e) + "\n")
+                fl.close()
             audio_features.append(mfcc)
+            mutex.release()
 
     fw = open('AudioFeatures.txt', 'wb')
     pickle.dump(audio_features, fw)

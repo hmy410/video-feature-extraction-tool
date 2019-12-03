@@ -8,9 +8,9 @@
 
 
 import os
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+from PyQt5.QtWidgets import QWidget,QVBoxLayout,QTextBrowser,QLabel,QLineEdit,QPushButton,QFileDialog,QApplication
+from PyQt5.QtCore import QMutex,QRect,QSize,QCoreApplication,QThread,pyqtSignal,Qt,QMetaObject
+from PyQt5.QtGui import QFont
 from extract_features import extract_img,extract_audio,extract_feature
 import video_jpg_ucf101_hmdb51
 import n_frames_ucf101_hmdb51
@@ -19,7 +19,8 @@ import numpy as np
 import pickle
 import time
 
-
+mutex1=QMutex()
+mutex2=QMutex()
 class Ui_Form(QWidget):
     def setupUi(self, Form):
 
@@ -70,33 +71,10 @@ class Ui_Form(QWidget):
         # self.thread.start()
         self.retranslateUi(Form)
         QMetaObject.connectSlotsByName(Form)
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.showTime)
 
 
-    def showTime(self):
-        # 获取系统当前时间
-        global flag
-        flag=0
-        time = QDateTime.currentDateTime()
-        # 设置系统时间的显示格式
-        timeDisplay = self.startime.msecsTo(time)
-        # 在标签上显示时间
-        if flag==1:
-            textBrowser.append(str(timeDisplay/1000)+'s')
-            textBrowser.moveCursor(textBrowser.textCursor().End)
-        flag=0
 
 
-    def startTimer(self):
-        # 设置时间间隔并启动定时器
-        self.startime=QDateTime.currentDateTime()
-        self.timer.start(1000)
-
-
-    def endTimer(self):
-        # 停止定时器
-        self.timer.stop()
 
     def retranslateUi(self, Form):
         _translate = QCoreApplication.translate
@@ -107,25 +85,34 @@ class Ui_Form(QWidget):
 
     def select_directory(self):
         global video_dir, jpg_dir, audio_dir
-        video_dir= QFileDialog.getExistingDirectory(self, "select directory", "./")
-
+        try:
+            video_dir= QFileDialog.getExistingDirectory(self, "select directory", "./")
+        except Exception as e:
+            print(e)
+            fl = open('log.txt', 'a')
+            fl.write(str(e) + "\n")
+            fl.close()
         print(video_dir)
         self.lineEdit.setText(video_dir)
         jpg_dir = "{}_jpg".format(video_dir)
         audio_dir = "{}_wav".format(video_dir)
 
     def slotStart(self):
+        global startime
+
+        startime=time.time()
         self.pushButton_2.setEnabled(False)
-        self.startTimer()
+
         fl = open('log.txt', 'w')
         fl.close()
+
         self.thread.start()
         # time.sleep(5)
         self.thread1.start()
 
     def slotEnd(self):
         self.pushButton_2.setEnabled(True)
-        self.endTimer()
+
 
 
 
@@ -134,29 +121,9 @@ class work_img(QThread):
 
     def __init__(self):
         super(work_img, self).__init__()
-        self.mutex = QMutex()
-
-        # self.working = True
-        # self.num = 0
-
-    # def __del__(self):
-    #     self.working = False
-    #     self.wait()
+        self.mutex=QMutex()
 
     def run(self):
-        self.mutex.lock()
-        try:
-            if video_dir==0:
-                raise Exception
-        except Exception as e:
-            print(e)
-            fl = open('log.txt', 'a')
-            fl.write(e + "\n")
-            fl.close()
-            self.trigger.emit()
-            return
-        # print("开始")
-        self.mutex.lock()
         if not os.path.exists(jpg_dir):
 
             for class_name in os.listdir(video_dir):
@@ -168,12 +135,9 @@ class work_img(QThread):
 
                 n_frames_ucf101_hmdb51.class_process(jpg_dir, class_name)
 
-        # print("预处理结束")
         imgdataloader, model, len = extract_img(video_dir,jpg_dir)
         features = []
         num = 0
-        self.mutex.unlock()
-        # QThread.sleep(1000)
 
         # 提取图像特征
         # 设置batch_size为2，每个视频选取16帧，（16,3,224,224）
@@ -183,27 +147,32 @@ class work_img(QThread):
             try:
                 for i in range(2):
                     self.mutex.lock()
-
-                    tmp = extract_feature(model, sample_batched[i])
-                    # self.mutex.unlock()
-                    # QThread.sleep(1)
+                    try:
+                        tmp = extract_feature(model, sample_batched[i])
+                    except Exception as e:
+                        print(e)
+                        fl = open('log.txt', 'a')
+                        fl.write(str(e) + "\n")
+                        fl.close()
                     features.append(tmp)
                     num += 1
                     info = "共" + str(len) + "个视频，已处理" + str(num) + "个视频，未处理"+str(len-num)+"个视频"
                     print(info)
+                    now = time.time()
+                    # 设置系统时间的显示格式
+                    timeDisplay = '%.2f'%(now-startime)
+                    print(str(timeDisplay ) + 's')
 
-                    flag = 1
                     textBrowser.append(info)
+                    textBrowser.append('处理时间：'+str(timeDisplay ) + 's')
                     textBrowser.moveCursor(textBrowser.textCursor().End)  # 文本框显示到底部
                     self.mutex.unlock()
 
             except Exception as e:
                 print(e)
                 fl = open('log.txt', 'a')
-                fl.write(e+"\n")
+                fl.write(str(e)+"\n")
                 fl.close()
-                # QThread.sleep(1)
-                # self.sleep(5)
 
         fw = open('ImageFeatures.txt', 'wb')
         pickle.dump(features, fw)
@@ -212,18 +181,14 @@ class work_img(QThread):
         fl.write("音频特征已写入ImageFeatures.txt\n")
         fl.close()
 
-
-
-
         try:
             self.trigger.emit(1) #无响应
         except Exception as e:
             print(e)
             fl = open('log.txt', 'a')
-            fl.write(e + "\n")
+            fl.write(str(e) + "\n")
             fl.close()
 
-            # self.sleep(1)
 
 class work_audio(QThread):
     trigger = pyqtSignal(int)  # 自定义信号，执行run()函数时，从相关线程发射此信号
@@ -233,44 +198,33 @@ class work_audio(QThread):
         self.mutex = QMutex()
 
     def run(self):
-        self.mutex.lock()
-        try:
-            if video_dir==0:
-                raise Exception
-        except Exception as e:
-            print(e)
-            fl = open('log.txt', 'a')
-            fl.write(e + "\n")
-            fl.close()
-            self.trigger.emit()
-            return
-        self.mutex.unlock()
-        # print("开始1")
-        # self.mutex.lock()
-        self.mutex.lock()
         if not os.path.exists(audio_dir):
             for class_name in os.listdir(video_dir):
 
                 audio_wav_ucf101_hmdb51.class_process(video_dir, audio_dir, class_name)
 
-                # QThread.sleep(1)
         # print("预处理2结束")
         # QThread.sleep(1000)
         try:
+
             extract_audio(video_dir)
             fl = open('log.txt', 'a')
             fl.write("音频特征已写入AudioFeatures.txt\n")
             fl.close()
+
         except Exception as e:
             print(e)
             fl = open('log.txt', 'a')
-            fl.write(e + "\n")
+            fl.write(str(e) + "\n")
             fl.close()
 
-
-        # print("结束1")
-        self.mutex.unlock()
-        self.trigger.emit(2)
+        try:
+            self.trigger.emit(2)  # 无响应
+        except Exception as e:
+            print(e)
+            fl = open('log.txt', 'a')
+            fl.write(str(e) + "\n")
+            fl.close()
 
 
 if __name__=="__main__":

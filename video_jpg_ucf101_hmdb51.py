@@ -2,7 +2,7 @@ from __future__ import print_function, division
 import os
 import sys
 import subprocess
-import time
+# import time
 
 def class_process(dir_path, dst_dir_path, class_name):
   class_path = os.path.join(dir_path, class_name)
